@@ -3,4 +3,4 @@ python -m pytest -q
 
 Result:
 ............................                                             [100%]
-28 passed in 1.98s
+28 passed in 1.92s
