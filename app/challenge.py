@@ -10,6 +10,7 @@ from .incidents import STATE
 
 
 REQUIRED_QUERY_FIELDS = {"user_id", "session_id", "feature", "message"}
+DEFAULT_CHALLENGE_PATH = Path("config/challenge.json")
 
 
 @dataclass(frozen=True)
@@ -30,7 +31,7 @@ def _require_text(payload: dict[str, Any], field: str) -> str:
     return value.strip()
 
 
-def load_challenge(path: str | Path = "config/challenge.json") -> ChallengeConfig:
+def load_challenge(path: str | Path = DEFAULT_CHALLENGE_PATH) -> ChallengeConfig:
     challenge_path = Path(path)
     if not challenge_path.exists():
         raise FileNotFoundError(
@@ -88,7 +89,7 @@ def load_challenge(path: str | Path = "config/challenge.json") -> ChallengeConfi
 
 def resolve_incident(
     explicit_scenario: str | None,
-    challenge_path: str | Path = "config/challenge.json",
+    challenge_path: str | Path = DEFAULT_CHALLENGE_PATH,
 ) -> str:
     if explicit_scenario is not None:
         if explicit_scenario not in STATE:

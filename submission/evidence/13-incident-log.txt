@@ -1,0 +1,16 @@
+Source:
+data/logs.jsonl, request/response records for req-e6bb77cb
+
+Request:
+ts=2026-09-29T13:06:17.369294Z
+correlation_id=req-e6bb77cb
+session_id=k4-l3a-challenge-s02
+feature=monitoring
+
+Response:
+ts=2026-09-29T13:06:17.369294Z
+correlation_id=req-e6bb77cb
+latency_ms=3641
+ttft_ms=50
+tool_name=retrieval
+tool_success=true

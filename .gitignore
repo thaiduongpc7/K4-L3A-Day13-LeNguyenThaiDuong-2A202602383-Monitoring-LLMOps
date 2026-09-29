@@ -1,9 +1,11 @@
 .venv/
+venv/
 __pycache__/
 *.pyc
 .DS_Store
 data/logs.jsonl
 data/audit.jsonl
 .env
+config/*challenge*.json
 .pytest_cache/
 .antigravity/

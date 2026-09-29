@@ -2,14 +2,22 @@ from __future__ import annotations
 
 import os
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
+from typing import Any
 
 from . import metrics
 from .mock_llm import FakeLLM
 from .mock_rag import retrieve
 from .pii import hash_user_id, summarize_text
 from .prompt_management import resolve_prompt
-from .tracing import get_langfuse_client, observe, propagate_attributes, tracing_enabled
+from .tracing import (
+    get_langfuse_client,
+    observe,
+    propagate_attributes,
+    start_observation,
+    tracing_enabled,
+)
 
 
 @dataclass
@@ -38,6 +46,7 @@ class LabAgent:
         correlation_id: str,
     ) -> AgentResult:
         langfuse_client = get_langfuse_client()
+        tracing = tracing_enabled()
         with propagate_attributes(
             user_id=hash_user_id(user_id),
             session_id=session_id,
@@ -51,33 +60,88 @@ class LabAgent:
             },
         ):
             started = time.perf_counter()
-            docs = retrieve(message)
+            with start_observation(
+                langfuse_client,
+                enabled=tracing,
+                name="retrieve-context",
+                as_type="retriever",
+                input={"query_preview": summarize_text(message)},
+                metadata={"correlation_id": correlation_id, "feature": feature},
+            ) as retrieval_observation:
+                docs = retrieve(message)
+                self._update_observation(
+                    retrieval_observation,
+                    output={"doc_count": len(docs), "success": True},
+                )
+
             prompt = resolve_prompt(
                 langfuse_client,
                 feature=feature,
                 docs=docs,
                 message=message,
-                enabled=tracing_enabled(),
+                enabled=tracing,
             )
-            langfuse_client.update_current_span(
-                metadata={
-                    "doc_count": len(docs),
-                    "query_preview": summarize_text(message),
-                    "prompt_name": prompt.name,
-                    "prompt_label": prompt.label,
-                    "prompt_version": prompt.version,
-                    "prompt_source": prompt.source,
-                    "prompt_fetch_error": prompt.fetch_error or "",
-                },
-                version=prompt.version,
+            if tracing:
+                langfuse_client.update_current_span(
+                    metadata={
+                        "doc_count": len(docs),
+                        "query_preview": summarize_text(message),
+                        "prompt_name": prompt.name,
+                        "prompt_label": prompt.label,
+                        "prompt_version": prompt.version,
+                        "prompt_source": prompt.source,
+                        "prompt_fetch_error": prompt.fetch_error or "",
+                    },
+                    version=prompt.version,
+                )
+
+            prompt_attributes = (
+                propagate_attributes(prompt=prompt.managed_prompt)
+                if tracing
+                else nullcontext()
             )
-            # TODO (CP2): instrument retrieve() and FakeLLM.generate() as child
-            # observations. The nested generation must receive prompt, usage and cost.
-            with propagate_attributes(prompt=prompt.managed_prompt):
-                response = self.llm.generate(prompt.text)
+            with prompt_attributes:
+                with start_observation(
+                    langfuse_client,
+                    enabled=tracing,
+                    name="llm-generate",
+                    as_type="generation",
+                    input={"prompt_preview": summarize_text(prompt.text)},
+                    metadata={
+                        "correlation_id": correlation_id,
+                        "prompt_name": prompt.name,
+                        "prompt_label": prompt.label,
+                        "prompt_version": prompt.version,
+                    },
+                    model=self.model,
+                    prompt=prompt.managed_prompt,
+                ) as generation_observation:
+                    response = self.llm.generate(prompt.text)
+                    cost_usd = self._estimate_cost(
+                        response.usage.input_tokens, response.usage.output_tokens
+                    )
+                    self._update_observation(
+                        generation_observation,
+                        output={"output_preview": summarize_text(response.text)},
+                        model=response.model,
+                        prompt=prompt.managed_prompt,
+                        usage_details={
+                            "input_tokens": response.usage.input_tokens,
+                            "output_tokens": response.usage.output_tokens,
+                        },
+                        cost_details={
+                            "input": round(
+                                response.usage.input_tokens / 1_000_000 * 3, 8
+                            ),
+                            "output": round(
+                                response.usage.output_tokens / 1_000_000 * 15, 8
+                            ),
+                            "total": cost_usd,
+                        },
+                        metadata={"ttft_ms": response.ttft_ms},
+                    )
             quality_score = self._heuristic_quality(message, response.text, docs)
             latency_ms = int((time.perf_counter() - started) * 1000)
-            cost_usd = self._estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
 
         metrics.record_request(
             latency_ms=latency_ms,
@@ -97,6 +161,12 @@ class LabAgent:
             cost_usd=cost_usd,
             quality_score=quality_score,
         )
+
+    @staticmethod
+    def _update_observation(observation: Any, **kwargs: Any) -> None:
+        updater = getattr(observation, "update", None)
+        if callable(updater):
+            updater(**kwargs)
 
     def _estimate_cost(self, tokens_in: int, tokens_out: int) -> float:
         input_cost = (tokens_in / 1_000_000) * 3

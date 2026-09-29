@@ -1,0 +1,10 @@
+Source:
+data/logs.jsonl
+
+Observed redacted values in request payload previews:
+email=[REDACTED_EMAIL]
+phone=[REDACTED_PHONE_VN]
+credit_card=[REDACTED_CREDIT_CARD]
+
+Validator result:
+Potential PII leaks detected: 0

@@ -1,0 +1,14 @@
+Source:
+data/logs.jsonl
+
+Representative response_sent record:
+event=response_sent
+ts=2026-09-29T10:25:05.408969Z
+correlation_id=req-545baa36
+model=claude-sonnet-4-5
+env=dev
+feature=monitoring
+latency_ms=3784
+ttft_ms=50
+tool_name=retrieval
+tool_success=true

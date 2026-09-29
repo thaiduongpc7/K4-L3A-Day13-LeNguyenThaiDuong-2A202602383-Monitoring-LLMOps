@@ -3,11 +3,16 @@ primary_slo:
   name: fast_successful_requests
   window: 28d
   sli:
-    good_event: 'event == "response_sent" and latency_ms <= 3000'
+    good_event: 'event == "response_sent" and latency_ms <= 3000 and tool_success == true'
     total_event: 'event == "request_received"'
   target_percent: 99.5
   error_budget_percent: 0.5
-  note: Học viên phải giải thích hoặc điều chỉnh ngưỡng bằng baseline của mình.
+  error_budget:
+    window_minutes: 40320
+    allowed_bad_minutes: 201.6
+    allowed_bad_request_ratio: 0.005
+    calculation: '28 * 24 * 60 * (1 - 0.995) = 201.6 minutes'
+  note: 'A request is good only when it completes within 3000 ms and retrieval succeeds. The 0.5% budget covers slow, failed, or retrieval-unsuccessful requests.'
 guardrails:
   error_rate_pct_max: 2
   daily_cost_usd_max: 2.5

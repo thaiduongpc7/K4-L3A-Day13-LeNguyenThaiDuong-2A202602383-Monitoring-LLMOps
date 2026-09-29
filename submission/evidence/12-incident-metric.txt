@@ -1,0 +1,24 @@
+Challenge:
+day13-k4-l3a-monitoring-llmops-v1
+
+Window:
+2026-09-29 20:06:17-20:06:34 Asia/Bangkok
+
+Panel:
+latency
+
+Observed metrics:
+traffic=5
+latency_p50_ms=2652
+latency_p95_ms=3641
+latency_p99_ms=3641
+ttft_p95_ms=50
+error_breakdown={}
+quality_avg=0.84
+total_cost_usd=0.0096
+
+Threshold:
+challenge latency threshold=2000 ms
+
+Result:
+latency_p95 exceeded the challenge threshold.
